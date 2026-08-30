@@ -7,14 +7,16 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a2e; /* Warna background gelap */
+            background-color: #1a1a2e; 
             color: #fff;
             display: flex;
-            justify-content: center;
+            /* Ubah posisi agar kotak tidak di tengah mati */
+            justify-content: flex-start; 
             align-items: center;
             height: 100vh;
             margin: 0;
-            overflow: hidden; /* Mencegah scroll saat bandul berayun ke ujung */
+            padding-left: 12%; /* Geser kotak profil ke kiri */
+            overflow: hidden; 
         }
 
         /* Canvas untuk background N-Pendulum */
@@ -29,7 +31,6 @@
 
         .container {
             text-align: center;
-            /* Dibuat agak transparan dengan efek blur (Glassmorphism) */
             background-color: rgba(22, 33, 62, 0.75); 
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
@@ -39,6 +40,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             max-width: 400px;
             width: 90%;
+            z-index: 10; /* Pastikan selalu di depan */
         }
 
         h1 { margin-bottom: 5px; color: #e94560; }
@@ -62,7 +64,6 @@
             box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
         }
 
-        /* Tombol Randomizer */
         .random-btn {
             background-color: #e94560;
             color: white;
@@ -82,10 +83,17 @@
             background-color: #0f3460;
             transform: scale(1.05);
         }
+
+        /* Responsif untuk Layar HP */
+        @media (max-width: 768px) {
+            body {
+                justify-content: center;
+                padding-left: 0;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Canvas Animasi Background -->
     <canvas id="bg-canvas"></canvas>
 
     <div class="container">
@@ -102,17 +110,15 @@
         <button class="random-btn" onclick="randomizePendulum()">🎲 Randomize Pendulum</button>
     </div>
 
-    <!-- JavaScript Physics Engine -->
     <script>
         const canvas = document.getElementById('bg-canvas');
         const ctx = canvas.getContext('2d');
         
         let width, height, originX, originY;
-        let scale = 120; // 120 pixel = 1 meter
+        let scale = 120; 
         let G = 9.81;
-        let dt = 0.02; // Time step RK4
+        let dt = 0.02; 
         
-        // State N-Pendulum
         let N;
         let m = [];
         let L = [];
@@ -124,13 +130,21 @@
         function resize() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            originX = width / 2;
-            originY = height * 0.2; // Gantung bandul sedikit di atas tengah layar
+            
+            // Pengaturan posisi berdasarkan lebar layar
+            if (width > 768) {
+                // Tampilan Desktop/Laptop: Poros di sebelah KANAN
+                originX = width * 0.75; 
+                originY = height * 0.25; 
+            } else {
+                // Tampilan HP: Poros di TENGAH tapi di bagian paling ATAS
+                originX = width / 2;
+                originY = height * 0.05;
+            }
         }
         window.addEventListener('resize', resize);
         resize();
 
-        // Simple Matrix Solver (Gaussian Elimination) untuk menggantikan scipy.linalg.solve
         function solveMatrix(A, b) {
             let n = b.length;
             for (let i = 0; i < n; i++) {
@@ -155,7 +169,6 @@
             return x;
         }
 
-        // Fungsi Hitung Turunan (Mirip dengan Python sebelumnya)
         function getDerivatives(currTheta, currOmega) {
             let M = Array(N).fill(0).map(() => Array(N).fill(0));
             let C = Array(N).fill(0);
@@ -165,7 +178,7 @@
                     let mass_sum = 0;
                     for (let k = Math.max(i, j); k < N; k++) mass_sum += m[k];
                     M[i][j] = mass_sum * L[i] * L[j] * Math.cos(currTheta[i] - currTheta[j]);
-                    if (i === j) M[i][j] += 1e-4; // Damping ringan mencegah singularitas
+                    if (i === j) M[i][j] += 1e-4; 
                 }
                 let c_val = 0;
                 for (let j = 0; j < N; j++) {
@@ -181,7 +194,6 @@
             return solveMatrix(M, C);
         }
 
-        // Integrasi RK4
         function stepRK4() {
             let k1_theta = [...omega];
             let k1_omega = getDerivatives(theta, omega);
@@ -201,25 +213,22 @@
             }
         }
 
-        // Fungsi Randomizer
         function randomizePendulum() {
-            N = Math.floor(Math.random() * 3) + 2; // Acak 2 sampai 4 joint
+            N = Math.floor(Math.random() * 3) + 2; 
             m = []; L = []; theta = []; omega = [];
             
             for (let i = 0; i < N; i++) {
-                m.push(Math.random() * 1.5 + 0.5); // Massa 0.5 - 2.0 kg
-                L.push(Math.random() * 0.8 + 0.5); // Panjang 0.5 - 1.3 m
-                theta.push(Math.random() * Math.PI * 2); // Sudut awal acak
+                m.push(Math.random() * 1.5 + 0.5); 
+                L.push(Math.random() * 0.8 + 0.5); 
+                theta.push(Math.random() * Math.PI * 2); 
                 omega.push(0);
             }
             traceData = [];
         }
 
-        // Animasi Loop
         function draw() {
             ctx.clearRect(0, 0, width, height);
             
-            // Sub-stepping agar stabil (mirip logic Python kamu)
             for(let s=0; s<2; s++) stepRK4();
 
             let x = originX;
@@ -227,7 +236,6 @@
             let currentX = [x];
             let currentY = [y];
 
-            // Hitung posisi
             for (let i = 0; i < N; i++) {
                 x += scale * L[i] * Math.sin(theta[i]);
                 y += scale * L[i] * Math.cos(theta[i]);
@@ -235,11 +243,9 @@
                 currentY.push(y);
             }
 
-            // Simpan jejak ujung bandul terakhir
             traceData.push({x: currentX[N], y: currentY[N]});
             if (traceData.length > maxTrace) traceData.shift();
 
-            // Gambar jejak (Trace)
             if (traceData.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(traceData[0].x, traceData[0].y);
@@ -251,9 +257,7 @@
                 ctx.stroke();
             }
 
-            // Gambar batang dan joint
             for (let i = 0; i < N; i++) {
-                // Garis batang
                 ctx.beginPath();
                 ctx.moveTo(currentX[i], currentY[i]);
                 ctx.lineTo(currentX[i+1], currentY[i+1]);
@@ -261,7 +265,6 @@
                 ctx.lineWidth = 3;
                 ctx.stroke();
 
-                // Lingkaran massa
                 ctx.beginPath();
                 ctx.arc(currentX[i+1], currentY[i+1], m[i] * 5 + 3, 0, Math.PI * 2);
                 ctx.fillStyle = '#e94560';
@@ -271,7 +274,6 @@
             requestAnimationFrame(draw);
         }
 
-        // Mulai pertama kali
         randomizePendulum();
         draw();
     </script>
