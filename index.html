@@ -14,21 +14,39 @@
             align-items: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden; /* Mencegah scroll saat bandul berayun ke ujung */
         }
+
+        /* Canvas untuk background N-Pendulum */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+        }
+
         .container {
             text-align: center;
-            background-color: #16213e;
+            /* Dibuat agak transparan dengan efek blur (Glassmorphism) */
+            background-color: rgba(22, 33, 62, 0.75); 
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 40px;
             border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             max-width: 400px;
             width: 90%;
         }
+
         h1 { margin-bottom: 5px; color: #e94560; }
         p { margin-bottom: 30px; color: #a9a9a9; font-size: 14px; line-height: 1.5; }
+        
         .links a {
             display: block;
-            background-color: #0f3460;
+            background-color: rgba(15, 52, 96, 0.9);
             color: white;
             text-decoration: none;
             padding: 12px 20px;
@@ -37,13 +55,39 @@
             font-weight: bold;
             transition: 0.3s;
         }
+        
         .links a:hover {
-            background-color: #e94560; /* Berubah warna merah saat disentuh mouse */
+            background-color: #e94560; 
             transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
+        }
+
+        /* Tombol Randomizer */
+        .random-btn {
+            background-color: #e94560;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin-top: 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .random-btn:hover {
+            background-color: #0f3460;
+            transform: scale(1.05);
         }
     </style>
 </head>
 <body>
+    <!-- Canvas Animasi Background -->
+    <canvas id="bg-canvas"></canvas>
+
     <div class="container">
         <h1>VRM21 Studios</h1>
         <p>Digital Workspace & Portfolio of<br><b>Ryadh Al Ariz Bangsawan Putra Rambe</b></p>
@@ -54,6 +98,182 @@
             <a href="https://orcid.org/0009-0000-2759-2235" target="_blank">ORCID</a>
             <a href="https://www.researchgate.net/profile/Ryadh-Rambe" target="_blank">ResearchGate</a>
         </div>
+
+        <button class="random-btn" onclick="randomizePendulum()">🎲 Randomize Pendulum</button>
     </div>
+
+    <!-- JavaScript Physics Engine -->
+    <script>
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height, originX, originY;
+        let scale = 120; // 120 pixel = 1 meter
+        let G = 9.81;
+        let dt = 0.02; // Time step RK4
+        
+        // State N-Pendulum
+        let N;
+        let m = [];
+        let L = [];
+        let theta = [];
+        let omega = [];
+        let traceData = [];
+        const maxTrace = 150;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            originX = width / 2;
+            originY = height * 0.2; // Gantung bandul sedikit di atas tengah layar
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Simple Matrix Solver (Gaussian Elimination) untuk menggantikan scipy.linalg.solve
+        function solveMatrix(A, b) {
+            let n = b.length;
+            for (let i = 0; i < n; i++) {
+                let maxEl = Math.abs(A[i][i]), maxRow = i;
+                for (let k = i + 1; k < n; k++) {
+                    if (Math.abs(A[k][i]) > maxEl) { maxEl = Math.abs(A[k][i]); maxRow = k; }
+                }
+                for (let k = i; k < n; k++) { let tmp = A[maxRow][k]; A[maxRow][k] = A[i][k]; A[i][k] = tmp; }
+                let tmp = b[maxRow]; b[maxRow] = b[i]; b[i] = tmp;
+                
+                for (let k = i + 1; k < n; k++) {
+                    let c = -A[k][i] / A[i][i];
+                    for (let j = i; j < n; j++) { if (i === j) A[k][j] = 0; else A[k][j] += c * A[i][j]; }
+                    b[k] += c * b[i];
+                }
+            }
+            let x = new Array(n).fill(0);
+            for (let i = n - 1; i >= 0; i--) {
+                x[i] = b[i] / A[i][i];
+                for (let k = i - 1; k >= 0; k--) b[k] -= A[k][i] * x[i];
+            }
+            return x;
+        }
+
+        // Fungsi Hitung Turunan (Mirip dengan Python sebelumnya)
+        function getDerivatives(currTheta, currOmega) {
+            let M = Array(N).fill(0).map(() => Array(N).fill(0));
+            let C = Array(N).fill(0);
+
+            for (let i = 0; i < N; i++) {
+                for (let j = 0; j < N; j++) {
+                    let mass_sum = 0;
+                    for (let k = Math.max(i, j); k < N; k++) mass_sum += m[k];
+                    M[i][j] = mass_sum * L[i] * L[j] * Math.cos(currTheta[i] - currTheta[j]);
+                    if (i === j) M[i][j] += 1e-4; // Damping ringan mencegah singularitas
+                }
+                let c_val = 0;
+                for (let j = 0; j < N; j++) {
+                    let mass_sum = 0;
+                    for (let k = Math.max(i, j); k < N; k++) mass_sum += m[k];
+                    c_val -= mass_sum * L[i] * L[j] * currOmega[j] * currOmega[j] * Math.sin(currTheta[i] - currTheta[j]);
+                }
+                let mass_sum_i = 0;
+                for (let k = i; k < N; k++) mass_sum_i += m[k];
+                c_val -= mass_sum_i * G * L[i] * Math.sin(currTheta[i]);
+                C[i] = c_val;
+            }
+            return solveMatrix(M, C);
+        }
+
+        // Integrasi RK4
+        function stepRK4() {
+            let k1_theta = [...omega];
+            let k1_omega = getDerivatives(theta, omega);
+
+            let k2_theta = omega.map((w, i) => w + 0.5 * dt * k1_omega[i]);
+            let k2_omega = getDerivatives(theta.map((t, i) => t + 0.5 * dt * k1_theta[i]), k2_theta);
+
+            let k3_theta = omega.map((w, i) => w + 0.5 * dt * k2_omega[i]);
+            let k3_omega = getDerivatives(theta.map((t, i) => t + 0.5 * dt * k2_theta[i]), k3_theta);
+
+            let k4_theta = omega.map((w, i) => w + dt * k3_omega[i]);
+            let k4_omega = getDerivatives(theta.map((t, i) => t + dt * k3_theta[i]), k4_theta);
+
+            for (let i = 0; i < N; i++) {
+                theta[i] += (dt / 6) * (k1_theta[i] + 2 * k2_theta[i] + 2 * k3_theta[i] + k4_theta[i]);
+                omega[i] += (dt / 6) * (k1_omega[i] + 2 * k2_omega[i] + 2 * k3_omega[i] + k4_omega[i]);
+            }
+        }
+
+        // Fungsi Randomizer
+        function randomizePendulum() {
+            N = Math.floor(Math.random() * 3) + 2; // Acak 2 sampai 4 joint
+            m = []; L = []; theta = []; omega = [];
+            
+            for (let i = 0; i < N; i++) {
+                m.push(Math.random() * 1.5 + 0.5); // Massa 0.5 - 2.0 kg
+                L.push(Math.random() * 0.8 + 0.5); // Panjang 0.5 - 1.3 m
+                theta.push(Math.random() * Math.PI * 2); // Sudut awal acak
+                omega.push(0);
+            }
+            traceData = [];
+        }
+
+        // Animasi Loop
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Sub-stepping agar stabil (mirip logic Python kamu)
+            for(let s=0; s<2; s++) stepRK4();
+
+            let x = originX;
+            let y = originY;
+            let currentX = [x];
+            let currentY = [y];
+
+            // Hitung posisi
+            for (let i = 0; i < N; i++) {
+                x += scale * L[i] * Math.sin(theta[i]);
+                y += scale * L[i] * Math.cos(theta[i]);
+                currentX.push(x);
+                currentY.push(y);
+            }
+
+            // Simpan jejak ujung bandul terakhir
+            traceData.push({x: currentX[N], y: currentY[N]});
+            if (traceData.length > maxTrace) traceData.shift();
+
+            // Gambar jejak (Trace)
+            if (traceData.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(traceData[0].x, traceData[0].y);
+                for (let i = 1; i < traceData.length; i++) {
+                    ctx.lineTo(traceData[i].x, traceData[i].y);
+                }
+                ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Gambar batang dan joint
+            for (let i = 0; i < N; i++) {
+                // Garis batang
+                ctx.beginPath();
+                ctx.moveTo(currentX[i], currentY[i]);
+                ctx.lineTo(currentX[i+1], currentY[i+1]);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Lingkaran massa
+                ctx.beginPath();
+                ctx.arc(currentX[i+1], currentY[i+1], m[i] * 5 + 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#e94560';
+                ctx.fill();
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        // Mulai pertama kali
+        randomizePendulum();
+        draw();
+    </script>
 </body>
 </html>
