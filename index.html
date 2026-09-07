@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -7,15 +8,14 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a2e; 
+            background-color: #1a1a2e;
             color: #fff;
             display: flex;
-            /* Kembali ditengah agar bandul bisa di kiri dan kanan */
-            justify-content: center; 
+            justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            overflow: hidden; 
+            overflow: hidden;
         }
 
         #bg-canvas {
@@ -29,7 +29,7 @@
 
         .container {
             text-align: center;
-            background-color: rgba(22, 33, 62, 0.75); 
+            background-color: rgba(22, 33, 62, 0.75);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -38,12 +38,21 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             max-width: 400px;
             width: 90%;
-            z-index: 10; 
+            z-index: 10;
         }
 
-        h1 { margin-bottom: 5px; color: #e94560; }
-        p { margin-bottom: 30px; color: #a9a9a9; font-size: 14px; line-height: 1.5; }
-        
+        h1 {
+            margin-bottom: 5px;
+            color: #e94560;
+        }
+
+        p {
+            margin-bottom: 30px;
+            color: #a9a9a9;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
         .links a {
             display: block;
             background-color: rgba(15, 52, 96, 0.9);
@@ -55,9 +64,9 @@
             font-weight: bold;
             transition: 0.3s;
         }
-        
+
         .links a:hover {
-            background-color: #e94560; 
+            background-color: #e94560;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
         }
@@ -89,14 +98,16 @@
     <div class="container">
         <h1>VRM21 Studios</h1>
         <p>Digital Workspace & Portfolio of<br><b>Ryadh Al Ariz Bangsawan Putra Rambe</b></p>
-        
+
         <div class="links">
             <a href="https://github.com/VRM21-Studios" target="_blank">GitHub</a>
             <a href="https://www.linkedin.com/in/ryadh-al-ariz-bangsawan-putra-rambe/" target="_blank">LinkedIn</a>
             <a href="https://orcid.org/0009-0000-2759-2235" target="_blank">ORCID</a>
             <a href="https://www.researchgate.net/profile/Ryadh-Rambe" target="_blank">ResearchGate</a>
-            <!-- Tambahan Google Scholar -->
             <a href="https://scholar.google.com/citations?hl=en&authuser=2&user=ylGigG4AAAAJ" target="_blank">Google Scholar</a>
+
+            <!-- Kria Development Guide -->
+            <a href="kria-setup-guide.html">Kria Setup Guide</a>
         </div>
 
         <button class="random-btn" onclick="randomizeAll()">🎲 Randomize Pendulums</button>
@@ -105,39 +116,62 @@
     <script>
         const canvas = document.getElementById('bg-canvas');
         const ctx = canvas.getContext('2d');
-        
+
         let width, height;
-        const scale = 120; 
+        const scale = 120;
         const G = 9.81;
-        const dt = 0.02; 
+        const dt = 0.02;
         const maxTrace = 150;
 
-        // Fungsi Global Solver Matriks
         function solveMatrix(A, b) {
             let n = b.length;
+
             for (let i = 0; i < n; i++) {
                 let maxEl = Math.abs(A[i][i]), maxRow = i;
+
                 for (let k = i + 1; k < n; k++) {
-                    if (Math.abs(A[k][i]) > maxEl) { maxEl = Math.abs(A[k][i]); maxRow = k; }
+                    if (Math.abs(A[k][i]) > maxEl) {
+                        maxEl = Math.abs(A[k][i]);
+                        maxRow = k;
+                    }
                 }
-                for (let k = i; k < n; k++) { let tmp = A[maxRow][k]; A[maxRow][k] = A[i][k]; A[i][k] = tmp; }
-                let tmp = b[maxRow]; b[maxRow] = b[i]; b[i] = tmp;
-                
+
+                for (let k = i; k < n; k++) {
+                    let tmp = A[maxRow][k];
+                    A[maxRow][k] = A[i][k];
+                    A[i][k] = tmp;
+                }
+
+                let tmp = b[maxRow];
+                b[maxRow] = b[i];
+                b[i] = tmp;
+
                 for (let k = i + 1; k < n; k++) {
                     let c = -A[k][i] / A[i][i];
-                    for (let j = i; j < n; j++) { if (i === j) A[k][j] = 0; else A[k][j] += c * A[i][j]; }
+
+                    for (let j = i; j < n; j++) {
+                        if (i === j)
+                            A[k][j] = 0;
+                        else
+                            A[k][j] += c * A[i][j];
+                    }
+
                     b[k] += c * b[i];
                 }
             }
+
             let x = new Array(n).fill(0);
+
             for (let i = n - 1; i >= 0; i--) {
                 x[i] = b[i] / A[i][i];
-                for (let k = i - 1; k >= 0; k--) b[k] -= A[k][i] * x[i];
+
+                for (let k = i - 1; k >= 0; k--)
+                    b[k] -= A[k][i] * x[i];
             }
+
             return x;
         }
 
-        // Class Sistem Pendulum untuk mempermudah multiple pendulums
         class PendulumSystem {
             constructor() {
                 this.originX = 0;
@@ -151,85 +185,181 @@
             }
 
             randomize() {
-                this.N = Math.floor(Math.random() * 3) + 2; 
-                this.m = []; this.L = []; this.theta = []; this.omega = [];
+                this.N = Math.floor(Math.random() * 3) + 2;
+                this.m = [];
+                this.L = [];
+                this.theta = [];
+                this.omega = [];
+
                 for (let i = 0; i < this.N; i++) {
-                    this.m.push(Math.random() * 1.5 + 0.5); 
-                    this.L.push(Math.random() * 0.8 + 0.5); 
-                    this.theta.push(Math.random() * Math.PI * 2); 
+                    this.m.push(Math.random() * 1.5 + 0.5);
+                    this.L.push(Math.random() * 0.8 + 0.5);
+                    this.theta.push(Math.random() * Math.PI * 2);
                     this.omega.push(0);
                 }
+
                 this.traceData = [];
             }
 
             getDerivatives(currTheta, currOmega) {
-                let M = Array(this.N).fill(0).map(() => Array(this.N).fill(0));
+                let M = Array(this.N).fill(0).map(() =>
+                    Array(this.N).fill(0)
+                );
+
                 let C = Array(this.N).fill(0);
 
                 for (let i = 0; i < this.N; i++) {
                     for (let j = 0; j < this.N; j++) {
                         let mass_sum = 0;
-                        for (let k = Math.max(i, j); k < this.N; k++) mass_sum += this.m[k];
-                        M[i][j] = mass_sum * this.L[i] * this.L[j] * Math.cos(currTheta[i] - currTheta[j]);
-                        if (i === j) M[i][j] += 1e-4; 
+
+                        for (let k = Math.max(i, j); k < this.N; k++)
+                            mass_sum += this.m[k];
+
+                        M[i][j] =
+                            mass_sum *
+                            this.L[i] *
+                            this.L[j] *
+                            Math.cos(currTheta[i] - currTheta[j]);
+
+                        if (i === j)
+                            M[i][j] += 1e-4;
                     }
+
                     let c_val = 0;
+
                     for (let j = 0; j < this.N; j++) {
                         let mass_sum = 0;
-                        for (let k = Math.max(i, j); k < this.N; k++) mass_sum += this.m[k];
-                        c_val -= mass_sum * this.L[i] * this.L[j] * currOmega[j] * currOmega[j] * Math.sin(currTheta[i] - currTheta[j]);
+
+                        for (let k = Math.max(i, j); k < this.N; k++)
+                            mass_sum += this.m[k];
+
+                        c_val -=
+                            mass_sum *
+                            this.L[i] *
+                            this.L[j] *
+                            currOmega[j] *
+                            currOmega[j] *
+                            Math.sin(currTheta[i] - currTheta[j]);
                     }
+
                     let mass_sum_i = 0;
-                    for (let k = i; k < this.N; k++) mass_sum_i += this.m[k];
-                    c_val -= mass_sum_i * G * this.L[i] * Math.sin(currTheta[i]);
+
+                    for (let k = i; k < this.N; k++)
+                        mass_sum_i += this.m[k];
+
+                    c_val -=
+                        mass_sum_i *
+                        G *
+                        this.L[i] *
+                        Math.sin(currTheta[i]);
+
                     C[i] = c_val;
                 }
+
                 return solveMatrix(M, C);
             }
 
             stepRK4() {
                 let k1_theta = [...this.omega];
-                let k1_omega = this.getDerivatives(this.theta, this.omega);
+                let k1_omega = this.getDerivatives(
+                    this.theta,
+                    this.omega
+                );
 
-                let k2_theta = this.omega.map((w, i) => w + 0.5 * dt * k1_omega[i]);
-                let k2_omega = this.getDerivatives(this.theta.map((t, i) => t + 0.5 * dt * k1_theta[i]), k2_theta);
+                let k2_theta = this.omega.map(
+                    (w, i) => w + 0.5 * dt * k1_omega[i]
+                );
 
-                let k3_theta = this.omega.map((w, i) => w + 0.5 * dt * k2_omega[i]);
-                let k3_omega = this.getDerivatives(this.theta.map((t, i) => t + 0.5 * dt * k2_theta[i]), k3_theta);
+                let k2_omega = this.getDerivatives(
+                    this.theta.map(
+                        (t, i) => t + 0.5 * dt * k1_theta[i]
+                    ),
+                    k2_theta
+                );
 
-                let k4_theta = this.omega.map((w, i) => w + dt * k3_omega[i]);
-                let k4_omega = this.getDerivatives(this.theta.map((t, i) => t + dt * k3_theta[i]), k4_theta);
+                let k3_theta = this.omega.map(
+                    (w, i) => w + 0.5 * dt * k2_omega[i]
+                );
+
+                let k3_omega = this.getDerivatives(
+                    this.theta.map(
+                        (t, i) => t + 0.5 * dt * k2_theta[i]
+                    ),
+                    k3_theta
+                );
+
+                let k4_theta = this.omega.map(
+                    (w, i) => w + dt * k3_omega[i]
+                );
+
+                let k4_omega = this.getDerivatives(
+                    this.theta.map(
+                        (t, i) => t + dt * k3_theta[i]
+                    ),
+                    k4_theta
+                );
 
                 for (let i = 0; i < this.N; i++) {
-                    this.theta[i] += (dt / 6) * (k1_theta[i] + 2 * k2_theta[i] + 2 * k3_theta[i] + k4_theta[i]);
-                    this.omega[i] += (dt / 6) * (k1_omega[i] + 2 * k2_omega[i] + 2 * k3_omega[i] + k4_omega[i]);
+                    this.theta[i] +=
+                        (dt / 6) *
+                        (
+                            k1_theta[i] +
+                            2 * k2_theta[i] +
+                            2 * k3_theta[i] +
+                            k4_theta[i]
+                        );
+
+                    this.omega[i] +=
+                        (dt / 6) *
+                        (
+                            k1_omega[i] +
+                            2 * k2_omega[i] +
+                            2 * k3_omega[i] +
+                            k4_omega[i]
+                        );
                 }
             }
 
             drawSystem() {
-                for(let s=0; s<2; s++) this.stepRK4();
+                for (let s = 0; s < 2; s++)
+                    this.stepRK4();
 
                 let x = this.originX;
                 let y = this.originY;
+
                 let currentX = [x];
                 let currentY = [y];
 
                 for (let i = 0; i < this.N; i++) {
                     x += scale * this.L[i] * Math.sin(this.theta[i]);
                     y += scale * this.L[i] * Math.cos(this.theta[i]);
+
                     currentX.push(x);
                     currentY.push(y);
                 }
 
-                this.traceData.push({x: currentX[this.N], y: currentY[this.N]});
-                if (this.traceData.length > maxTrace) this.traceData.shift();
+                this.traceData.push({
+                    x: currentX[this.N],
+                    y: currentY[this.N]
+                });
+
+                if (this.traceData.length > maxTrace)
+                    this.traceData.shift();
 
                 if (this.traceData.length > 1) {
                     ctx.beginPath();
-                    ctx.moveTo(this.traceData[0].x, this.traceData[0].y);
+                    ctx.moveTo(
+                        this.traceData[0].x,
+                        this.traceData[0].y
+                    );
+
                     for (let i = 1; i < this.traceData.length; i++) {
-                        ctx.lineTo(this.traceData[i].x, this.traceData[i].y);
+                        ctx.lineTo(
+                            this.traceData[i].x,
+                            this.traceData[i].y
+                        );
                     }
+
                     ctx.strokeStyle = 'rgba(0, 255, 204, 0.4)';
                     ctx.lineWidth = 2;
                     ctx.stroke();
@@ -238,36 +368,41 @@
                 for (let i = 0; i < this.N; i++) {
                     ctx.beginPath();
                     ctx.moveTo(currentX[i], currentY[i]);
-                    ctx.lineTo(currentX[i+1], currentY[i+1]);
+                    ctx.lineTo(currentX[i + 1], currentY[i + 1]);
+
                     ctx.strokeStyle = '#fff';
                     ctx.lineWidth = 3;
                     ctx.stroke();
 
                     ctx.beginPath();
-                    ctx.arc(currentX[i+1], currentY[i+1], this.m[i] * 5 + 3, 0, Math.PI * 2);
+                    ctx.arc(
+                        currentX[i + 1],
+                        currentY[i + 1],
+                        this.m[i] * 5 + 3,
+                        0,
+                        Math.PI * 2
+                    );
+
                     ctx.fillStyle = '#e94560';
                     ctx.fill();
                 }
             }
         }
 
-        // Inisialisasi Dua Bandul (Kiri & Kanan)
         let penLeft = new PendulumSystem();
         let penRight = new PendulumSystem();
 
         function resize() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            
+
             if (width > 768) {
-                // Desktop: Kiri di 20%, Kanan di 80% layar
-                penLeft.originX = width * 0.20; 
-                penLeft.originY = height * 0.25; 
-                
-                penRight.originX = width * 0.80; 
-                penRight.originY = height * 0.25; 
+                penLeft.originX = width * 0.20;
+                penLeft.originY = height * 0.25;
+
+                penRight.originX = width * 0.80;
+                penRight.originY = height * 0.25;
             } else {
-                // Mobile: Digeser agak ke pinggir dan dinaikkan
                 penLeft.originX = width * 0.15;
                 penLeft.originY = height * 0.1;
 
@@ -275,8 +410,9 @@
                 penRight.originY = height * 0.1;
             }
         }
+
         window.addEventListener('resize', resize);
-        
+
         function randomizeAll() {
             penLeft.randomize();
             penRight.randomize();
@@ -284,15 +420,17 @@
 
         function draw() {
             ctx.clearRect(0, 0, width, height);
+
             penLeft.drawSystem();
             penRight.drawSystem();
+
             requestAnimationFrame(draw);
         }
 
-        // Eksekusi Awal
         resize();
         randomizeAll();
         draw();
     </script>
 </body>
 </html>
+```
